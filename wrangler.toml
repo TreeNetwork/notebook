@@ -1,0 +1,19 @@
+# Notebook — Leila's personal Notion replacement.
+# LOAD-BEARING CONFIG: the database_id below is the live D1 "notebook" database.
+# Do not change it, and do not point this Worker at any Tree+ database.
+
+name = "notebook"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "notebook"
+database_id = "cd5d7fac-05d4-45da-8f9a-d35fccf72239"
+
+# Secret (set in the Cloudflare dashboard, not here):
+#   ACCESS_PASSPHRASE — the passphrase Leila uses to log in.

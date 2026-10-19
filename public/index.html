@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notebook</title>
+<meta name="robots" content="noindex">
+<style>
+:root{
+  --bg:#FAF8F3;--panel:#F1EEE6;--ink:#232019;--ink2:#6B655A;--rule:#DDD8CC;
+  --accent:#8C5A2B;--accent2:#B8894F;--danger:#9A3B33;
+  --sans:"Avenir Next","Helvetica Neue",Arial,sans-serif;
+  --serif:Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#191816;--panel:#211F1C;--ink:#EAE6DC;--ink2:#9B958A;--rule:#36332D;--accent:#C89B5F;--accent2:#8C5A2B;--danger:#D08078}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:16px;line-height:1.55;min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:8px 10px}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* login */
+#login{display:none;min-height:100vh;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+#login h1{font-family:var(--sans);font-weight:500;letter-spacing:.14em;text-transform:uppercase;font-size:1.1rem;margin:0}
+#login form{display:flex;gap:8px}
+#login .err{color:var(--danger);font-size:.9rem;min-height:1.2em;font-family:var(--sans)}
+
+/* layout */
+#app{display:none;grid-template-columns:270px 1fr;min-height:100vh}
+.side{background:var(--panel);border-right:1px solid var(--rule);padding:16px 10px 16px 14px;display:flex;flex-direction:column;gap:10px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{font-family:var(--sans);font-weight:500;letter-spacing:.16em;text-transform:uppercase;font-size:.9rem;padding:2px 6px}
+.side input[type=search]{width:100%;font-family:var(--sans);font-size:.9rem}
+.navbtn{display:block;width:100%;text-align:left;font-family:var(--sans);font-size:.88rem;padding:6px 8px;border-radius:4px;color:var(--ink2)}
+.navbtn:hover,.navbtn.on{background:var(--bg);color:var(--ink)}
+.tree{flex:1;font-family:var(--sans);font-size:.9rem}
+.node{display:flex;align-items:center;gap:2px;border-radius:4px;padding:3px 4px;cursor:pointer;position:relative}
+.node:hover,.node.on{background:var(--bg)}
+.node .tw{width:16px;flex:none;color:var(--ink2);font-size:.7rem;text-align:center}
+.node .ic{width:16px;flex:none;text-align:center;font-size:.8rem}
+.node .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .more{opacity:0;color:var(--ink2);padding:0 4px}
+.node:hover .more{opacity:1}
+.kids{margin-left:14px}
+.sfoot{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--rule);padding-top:10px}
+.menu{position:absolute;z-index:30;background:var(--panel);border:1px solid var(--rule);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;min-width:160px;padding:4px;font-family:var(--sans);font-size:.88rem}
+.menu button{text-align:left;padding:7px 10px;border-radius:4px}
+.menu button:hover{background:var(--bg)}
+.menu .danger{color:var(--danger)}
+
+/* main */
+.main{padding:40px min(7vw,80px) 90px;max-width:860px;width:100%;margin:0 auto}
+.crumbs{font-family:var(--sans);font-size:.8rem;color:var(--ink2);margin-bottom:14px;letter-spacing:.03em}
+.crumbs a{color:var(--ink2);text-decoration:none;cursor:pointer}
+.crumbs a:hover{color:var(--accent)}
+#ptitle{font-size:2.1rem;font-weight:600;border:0;background:none;width:100%;padding:0;margin:0 0 6px;font-family:var(--serif)}
+.pmeta{display:flex;gap:14px;align-items:center;font-family:var(--sans);font-size:.78rem;color:var(--ink2);margin-bottom:22px;flex-wrap:wrap}
+.pmeta button{color:var(--accent);letter-spacing:.06em;text-transform:uppercase;font-size:.74rem}
+.pmeta button:hover{text-decoration:underline}
+
+/* content render */
+.doc{font-size:1.05rem}
+.doc h1{font-size:1.6rem;margin:1.2em 0 .4em}
+.doc h2{font-size:1.3rem;margin:1.1em 0 .35em}
+.doc h3{font-size:1.1rem;margin:1em 0 .3em;font-family:var(--sans);letter-spacing:.02em}
+.doc p{margin:.45em 0}
+.doc ul,.doc ol{margin:.4em 0;padding-left:1.4em}
+.doc blockquote{border-left:3px solid var(--accent2);margin:.6em 0;padding:.1em 0 .1em 14px;color:var(--ink2)}
+.doc hr{border:0;border-top:1px solid var(--rule);margin:1.4em 0}
+.doc code{font-family:var(--mono);font-size:.85em;background:var(--panel);padding:1px 5px;border-radius:3px}
+.doc pre{background:var(--panel);padding:12px 14px;border-radius:6px;overflow-x:auto}
+.doc pre code{background:none;padding:0}
+.doc a{color:var(--accent)}
+.doc .todo{list-style:none;margin-left:-1.4em;display:flex;gap:9px;align-items:flex-start;cursor:pointer;padding:1px 0}
+.doc .todo .bx{width:16px;height:16px;border:1.5px solid var(--ink2);border-radius:3px;flex:none;margin-top:4px}
+.doc .todo.done .bx{background:var(--accent);border-color:var(--accent)}
+.doc .todo.done span{color:var(--ink2);text-decoration:line-through}
+.doc .empty{color:var(--ink2);font-style:italic}
+#editor{width:100%;min-height:52vh;font-family:var(--mono);font-size:.92rem;line-height:1.6;display:none}
+.savestate{font-family:var(--mono);font-size:.7rem;color:var(--ink2)}
+
+/* database table */
+.tblwrap{overflow-x:auto}
+table.db{border-collapse:collapse;width:100%;font-family:var(--sans);font-size:.9rem}
+table.db th,table.db td{border:1px solid var(--rule);padding:0;text-align:left;vertical-align:top;min-width:120px}
+table.db th{background:var(--panel);font-weight:500;padding:8px 10px;cursor:pointer;white-space:nowrap}
+table.db td input[type=text]{width:100%;border:0;border-radius:0;background:none;padding:8px 10px}
+table.db td.chk{text-align:center;padding:8px}
+table.db td .rowdel{color:var(--ink2);padding:8px}
+table.db td .rowdel:hover{color:var(--danger)}
+.dbctl{display:flex;gap:10px;margin:12px 0;font-family:var(--sans);font-size:.84rem}
+.dbctl button{color:var(--accent)}
+.dbctl button:hover{text-decoration:underline}
+
+/* tasks + search */
+.tgroup{margin:18px 0}
+.tgroup h3{font-family:var(--sans);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);margin:0 0 6px}
+.tgroup h3 a{color:var(--accent);cursor:pointer;text-decoration:none}
+.srow{display:block;padding:8px 10px;border-bottom:1px solid var(--rule);cursor:pointer;font-family:var(--sans);font-size:.95rem;width:100%;text-align:left}
+.srow:hover{background:var(--panel)}
+.srow small{color:var(--ink2);margin-left:8px;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase}
+.hint{color:var(--ink2);font-style:italic}
+#filezip{display:none}
+@media(max-width:800px){#app{grid-template-columns:1fr}.side{position:fixed;left:0;top:0;bottom:0;width:260px;transform:translateX(-100%);transition:transform .25s;z-index:20}.side.open{transform:none}.mbar{display:flex!important}}
+.mbar{display:none;position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--rule);padding:10px 14px;font-family:var(--sans);z-index:10;gap:10px}
+</style>
+
+<div id="login">
+  <h1>Notebook</h1>
+  <form id="loginForm">
+    <input type="password" id="pass" placeholder="Passphrase" autocomplete="current-password">
+    <button class="navbtn" style="color:var(--accent)">Enter</button>
+  </form>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<div id="app">
+  <aside class="side" id="side">
+    <div class="brand">Notebook</div>
+    <input type="search" id="search" placeholder="Search…">
+    <button class="navbtn" id="navTasks">☑ Tasks</button>
+    <div class="tree" id="tree"></div>
+    <div class="sfoot">
+      <button class="navbtn" id="newPage">+ New page</button>
+      <button class="navbtn" id="newDb">+ New database</button>
+      <button class="navbtn" id="importBtn">Import Notion export (.zip)</button>
+      <input type="file" id="filezip" accept=".zip">
+      <button class="navbtn" id="toggleArch">Show archived</button>
+      <button class="navbtn" id="logout">Log out</button>
+    </div>
+  </aside>
+  <div>
+    <div class="mbar"><button class="navbtn" id="burger">☰ Pages</button></div>
+    <main class="main" id="main"></main>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const api=async(path,opts)=>{
+  const r=await fetch('/api'+path,Object.assign({headers:{'content-type':'application/json'}},opts));
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401&&path!=='/login'){showLogin();throw new Error('logged out');}
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let TREE=[],current=null,showArch=false,expanded={};
+try{expanded=JSON.parse(localStorage.getItem('nb.exp')||'{}')}catch(e){}
+const remember=()=>{try{localStorage.setItem('nb.exp',JSON.stringify(expanded))}catch(e){}};
+
+function showLogin(){$('#app').style.display='none';$('#login').style.display='flex';$('#pass').focus();}
+function showApp(){$('#login').style.display='none';$('#app').style.display='grid';}
+
+$('#loginForm').onsubmit=async e=>{
+  e.preventDefault();$('#loginErr').textContent='';
+  try{await api('/login',{method:'POST',body:JSON.stringify({passphrase:$('#pass').value})});
+    showApp();await loadTree();openHome();
+  }catch(err){$('#loginErr').textContent=err.message;}
+};
+$('#logout').onclick=async()=>{await api('/logout',{method:'POST'});location.reload();};
+$('#burger').onclick=()=>$('#side').classList.toggle('open');
+
+/* ---------- tree ---------- */
+async function loadTree(){TREE=(await api('/tree')).pages;renderTree();}
+function kidsOf(pid){return TREE.filter(p=>p.parent_id===(pid||null)&&(showArch?true:!p.archived));}
+function renderTree(){
+  const root=$('#tree');root.innerHTML='';
+  const build=(pid,into)=>{
+    kidsOf(pid).forEach(p=>{
+      const has=kidsOf(p.id).length>0;
+      const n=document.createElement('div');
+      n.className='node'+(current===p.id?' on':'');
+      n.innerHTML=`<span class="tw">${has?(expanded[p.id]?'▾':'▸'):''}</span><span class="ic">${p.kind==='database'?'▦':'¶'}</span><span class="nm">${esc(p.title)}${p.archived?' <small>(archived)</small>':''}</span><button class="more">⋯</button>`;
+      n.querySelector('.tw').onclick=e=>{e.stopPropagation();if(has){expanded[p.id]=!expanded[p.id];remember();renderTree();}};
+      n.querySelector('.more').onclick=e=>{e.stopPropagation();nodeMenu(e,p);};
+      n.onclick=()=>openPage(p.id);
+      into.appendChild(n);
+      if(has&&expanded[p.id]){const k=document.createElement('div');k.className='kids';into.appendChild(k);build(p.id,k);}
+    });
+  };
+  build(null,root);
+  if(!TREE.length)root.innerHTML='<p class="hint" style="padding:6px">No pages yet — create one below, or import your Notion export.</p>';
+}
+function closeMenus(){document.querySelectorAll('.menu').forEach(m=>m.remove());}
+document.addEventListener('click',closeMenus);
+function nodeMenu(e,p){
+  closeMenus();
+  const m=document.createElement('div');m.className='menu';
+  m.style.left=Math.min(e.pageX,window.innerWidth-180)+'px';m.style.top=e.pageY+'px';
+  m.innerHTML=`<button data-a="sub">+ Subpage</button><button data-a="subdb">+ Sub-database</button><button data-a="ren">Rename</button><button data-a="arc" class="danger">${p.archived?'Restore':'Archive'}</button>`;
+  m.onclick=ev=>ev.stopPropagation();
+  m.querySelectorAll('button').forEach(b=>b.onclick=async()=>{
+    closeMenus();
+    if(b.dataset.a==='ren'){const t=prompt('Rename page',p.title);if(t){await api('/pages/'+p.id,{method:'PATCH',body:JSON.stringify({title:t})});await loadTree();if(current===p.id)openPage(p.id);}}
+    if(b.dataset.a==='arc'){await (p.archived?api('/pages/'+p.id,{method:'PATCH',body:JSON.stringify({archived:0})}):api('/pages/'+p.id,{method:'DELETE'}));await loadTree();if(current===p.id)openHome();}
+    if(b.dataset.a==='sub'||b.dataset.a==='subdb'){const id=(await api('/pages',{method:'POST',body:JSON.stringify({parent_id:p.id,kind:b.dataset.a==='subdb'?'database':'page'})})).id;expanded[p.id]=true;remember();await loadTree();openPage(id);}
+  });
+  document.body.appendChild(m);
+}
+$('#newPage').onclick=async()=>{const id=(await api('/pages',{method:'POST',body:JSON.stringify({})})).id;await loadTree();openPage(id);};
+$('#newDb').onclick=async()=>{const id=(await api('/pages',{method:'POST',body:JSON.stringify({kind:'database'})})).id;await loadTree();openPage(id);};
+$('#toggleArch').onclick=function(){showArch=!showArch;this.textContent=showArch?'Hide archived':'Show archived';renderTree();};
+
+/* ---------- search ---------- */
+let sT;$('#search').addEventListener('input',function(){clearTimeout(sT);const q=this.value.trim();if(!q){renderTree();return;}sT=setTimeout(async()=>{
+  const r=(await api('/search?q='+encodeURIComponent(q))).results;
+  const root=$('#tree');root.innerHTML='';
+  if(!r.length){root.innerHTML='<p class="hint" style="padding:6px">Nothing found.</p>';return;}
+  r.forEach(p=>{const b=document.createElement('button');b.className='srow';b.innerHTML=esc(p.title)+'<small>'+p.kind+'</small>';b.onclick=()=>{$('#search').value='';renderTree();openPage(p.id);};root.appendChild(b);});
+},250);});
+
+/* ---------- markdown ---------- */
+function inline(s){
+  s=esc(s);
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/(^|[^*])\*([^*]+)\*/g,'$1<em>$2</em>');
+  s=s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
+}
+function renderDoc(text,pageId){
+  const lines=String(text||'').split('\n');const out=[];let i=0,inCode=false,code=[],listOpen=null;
+  const closeList=()=>{if(listOpen){out.push(listOpen==='ul'?'</ul>':'</ol>');listOpen=null;}};
+  for(i=0;i<lines.length;i++){
+    const L=lines[i];
+    if(/^```/.test(L)){if(inCode){out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>');code=[];inCode=false;}else{closeList();inCode=true;}continue;}
+    if(inCode){code.push(L);continue;}
+    let m;
+    if((m=L.match(/^\s*- \[( |x)\]\s*(.*)$/))){closeList();out.push(`<div class="todo ${m[1]==='x'?'done':''}" data-line="${i}"><span class="bx"></span><span>${inline(m[2])}</span></div>`);continue;}
+    if((m=L.match(/^###\s+(.*)/))){closeList();out.push('<h3>'+inline(m[1])+'</h3>');continue;}
+    if((m=L.match(/^##\s+(.*)/))){closeList();out.push('<h2>'+inline(m[1])+'</h2>');continue;}
+    if((m=L.match(/^#\s+(.*)/))){closeList();out.push('<h1>'+inline(m[1])+'</h1>');continue;}
+    if(/^\s*(---|\*\*\*)\s*$/.test(L)){closeList();out.push('<hr>');continue;}
+    if((m=L.match(/^>\s?(.*)/))){closeList();out.push('<blockquote>'+inline(m[1])+'</blockquote>');continue;}
+    if((m=L.match(/^\s*[-*]\s+(.*)/))){if(listOpen!=='ul'){closeList();out.push('<ul>');listOpen='ul';}out.push('<li>'+inline(m[1])+'</li>');continue;}
+    if((m=L.match(/^\s*\d+\.\s+(.*)/))){if(listOpen!=='ol'){closeList();out.push('<ol>');listOpen='ol';}out.push('<li>'+inline(m[1])+'</li>');continue;}
+    closeList();
+    if(L.trim()==='')continue;
+    out.push('<p>'+inline(L)+'</p>');
+  }
+  closeList();
+  if(inCode)out.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>');
+  return out.join('')||'<p class="empty">Empty page — click Edit to write.</p>';
+}
+
+/* ---------- views ---------- */
+function crumbs(p){
+  const chain=[];let cur=p;
+  while(cur){chain.unshift(cur);cur=TREE.find(x=>x.id===cur.parent_id);}
+  return '<div class="crumbs">'+chain.map((c,i)=>i===chain.length-1?esc(c.title):`<a data-id="${c.id}">${esc(c.title)}</a> / `).join('')+'</div>';
+}
+function openHome(){
+  current=null;renderTree();
+  $('#main').innerHTML='<h1 style="font-size:2rem">Notebook</h1><p class="hint">Your pages are on the left. Everything saves as you type, to your own database on your own Cloudflare account.</p>';
+}
+async function openPage(id){
+  current=id;renderTree();$('#side').classList.remove('open');
+  const {page,rows}=await api('/pages/'+id);
+  const main=$('#main');
+  main.innerHTML=crumbs(page)+`<input id="ptitle" value="${esc(page.title)}">`+
+    `<div class="pmeta"><span>${page.kind==='database'?'Database':'Page'}</span>`+
+    (page.kind==='page'?'<button id="editBtn">Edit</button>':'')+
+    `<span class="savestate" id="saved"></span></div><div id="body"></div>`;
+  main.querySelectorAll('.crumbs a').forEach(a=>a.onclick=()=>openPage(a.dataset.id));
+  let tT;$('#ptitle').addEventListener('input',function(){clearTimeout(tT);tT=setTimeout(async()=>{await api('/pages/'+id,{method:'PATCH',body:JSON.stringify({title:this.value||'Untitled'})});loadTree();},500);});
+  if(page.kind==='database')renderDb(page,rows);else renderPageBody(page);
+}
+function renderPageBody(page){
+  const body=$('#body');
+  body.innerHTML=`<div class="doc" id="doc">${renderDoc(page.content,page.id)}</div><textarea id="editor" placeholder="Write in plain text. # heading, - list, - [ ] task, **bold**, > quote, \`\`\` code."></textarea>`;
+  const ed=$('#editor'),doc=$('#doc');
+  ed.value=page.content;
+  doc.querySelectorAll('.todo').forEach(t=>t.onclick=async()=>{
+    await api('/tasks/toggle',{method:'POST',body:JSON.stringify({page_id:page.id,line:+t.dataset.line})});
+    const {page:p2}=await api('/pages/'+page.id);ed.value=p2.content;doc.innerHTML=renderDoc(p2.content,page.id);renderPageBodyRebind(page,ed,doc);
+  });
+  let sv;ed.addEventListener('input',()=>{$('#saved').textContent='…';clearTimeout(sv);sv=setTimeout(async()=>{
+    await api('/pages/'+page.id,{method:'PATCH',body:JSON.stringify({content:ed.value})});
+    $('#saved').textContent='saved';doc.innerHTML=renderDoc(ed.value,page.id);renderPageBodyRebind(page,ed,doc);
+  },700);});
+  $('#editBtn').onclick=function(){
+    const editing=ed.style.display==='block';
+    ed.style.display=editing?'none':'block';doc.style.display=editing?'block':'none';
+    this.textContent=editing?'Edit':'Done';
+    if(!editing)ed.focus();else{doc.innerHTML=renderDoc(ed.value,page.id);renderPageBodyRebind(page,ed,doc);}
+  };
+}
+function renderPageBodyRebind(page,ed,doc){
+  doc.querySelectorAll('.todo').forEach(t=>t.onclick=async()=>{
+    await api('/tasks/toggle',{method:'POST',body:JSON.stringify({page_id:page.id,line:+t.dataset.line})});
+    const {page:p2}=await api('/pages/'+page.id);ed.value=p2.content;doc.innerHTML=renderDoc(p2.content,page.id);renderPageBodyRebind(page,ed,doc);
+  });
+}
+
+/* ---------- database ---------- */
+function renderDb(page,rows){
+  let fields=[];try{fields=JSON.parse(page.fields_json||'[]')}catch(e){}
+  const body=$('#body');
+  const cell=(r,f)=>{
+    let d={};try{d=JSON.parse(r.data_json||'{}')}catch(e){}
+    const v=d[f.name]??'';
+    if(f.type==='checkbox')return `<td class="chk"><input type="checkbox" data-r="${r.id}" data-f="${esc(f.name)}" ${v&&v!=='No'?'checked':''}></td>`;
+    return `<td><input type="text" data-r="${r.id}" data-f="${esc(f.name)}" value="${esc(v)}"></td>`;
+  };
+  body.innerHTML=`<div class="tblwrap"><table class="db"><thead><tr>${fields.map((f,i)=>`<th data-i="${i}" title="Click to rename">${esc(f.name)}</th>`).join('')}<th style="min-width:40px"></th></tr></thead><tbody>${
+    rows.map(r=>`<tr>${fields.map(f=>cell(r,f)).join('')}<td class="chk"><button class="rowdel" data-r="${r.id}">✕</button></td></tr>`).join('')
+  }</tbody></table></div>
+  <div class="dbctl"><button id="addRow">+ Row</button><button id="addField">+ Field</button><span class="hint">${rows.length} row${rows.length===1?'':'s'}</span></div>`;
+  const saveRow=async(rid)=>{
+    const data={};
+    body.querySelectorAll(`[data-r="${rid}"][data-f]`).forEach(inp=>{
+      data[inp.dataset.f]=inp.type==='checkbox'?(inp.checked?'Yes':''):inp.value;
+    });
+    await api('/rows/'+rid,{method:'PATCH',body:JSON.stringify({data})});
+  };
+  let timers={};
+  body.querySelectorAll('[data-r][data-f]').forEach(inp=>{
+    inp.addEventListener(inp.type==='checkbox'?'change':'input',()=>{
+      clearTimeout(timers[inp.dataset.r]);timers[inp.dataset.r]=setTimeout(()=>saveRow(inp.dataset.r),500);
+    });
+  });
+  body.querySelectorAll('.rowdel').forEach(b=>b.onclick=async()=>{if(confirm('Delete this row?')){await api('/rows/'+b.dataset.r,{method:'DELETE'});openPage(page.id);}});
+  body.querySelectorAll('th[data-i]').forEach(th=>th.onclick=async()=>{
+    const i=+th.dataset.i;const t=prompt('Field name',fields[i].name);
+    if(t&&t!==fields[i].name){fields[i].name=t;await api('/pages/'+page.id,{method:'PATCH',body:JSON.stringify({fields_json:JSON.stringify(fields)})});openPage(page.id);}
+  });
+  $('#addRow').onclick=async()=>{await api('/pages/'+page.id+'/rows',{method:'POST',body:JSON.stringify({data:{}})});openPage(page.id);};
+  $('#addField').onclick=async()=>{
+    const t=prompt('New field name');if(!t)return;
+    const ty=confirm('Is this a checkbox field? OK = checkbox, Cancel = text')?'checkbox':'text';
+    fields.push({name:t,type:ty});
+    await api('/pages/'+page.id,{method:'PATCH',body:JSON.stringify({fields_json:JSON.stringify(fields)})});openPage(page.id);
+  };
+}
+
+/* ---------- tasks ---------- */
+$('#navTasks').onclick=async()=>{
+  current=null;renderTree();$('#side').classList.remove('open');
+  const {tasks}=await api('/tasks');
+  const open=tasks.filter(t=>!t.done),done=tasks.filter(t=>t.done);
+  const group=(list)=>{const by={};list.forEach(t=>{(by[t.page_id]=by[t.page_id]||{title:t.page_title,items:[]}).items.push(t);});
+    return Object.entries(by).map(([pid,g])=>`<div class="tgroup"><h3><a data-id="${pid}">${esc(g.title)}</a></h3>${g.items.map(t=>`<div class="todo ${t.done?'done':''}" data-p="${t.page_id}" data-line="${t.line}"><span class="bx"></span><span>${esc(t.text)}</span></div>`).join('')}</div>`).join('');};
+  $('#main').innerHTML=`<h1 style="font-size:2rem">Tasks</h1><p class="hint">Every open checkbox across all your pages. Write one anywhere with <code>- [ ]</code>.</p><div class="doc">${open.length?group(open):'<p class="empty">Nothing open.</p>'}${done.length?'<hr>'+group(done):''}</div>`;
+  $('#main').querySelectorAll('.todo').forEach(t=>t.onclick=async()=>{await api('/tasks/toggle',{method:'POST',body:JSON.stringify({page_id:t.dataset.p,line:+t.dataset.line})});$('#navTasks').click();});
+  $('#main').querySelectorAll('.tgroup h3 a').forEach(a=>a.onclick=()=>openPage(a.dataset.id));
+};
+
+/* ---------- import ---------- */
+$('#importBtn').onclick=()=>$('#filezip').click();
+$('#filezip').onchange=async function(){
+  const f=this.files[0];if(!f)return;this.value='';
+  $('#main').innerHTML='<h1 style="font-size:2rem">Importing…</h1><p class="hint">Reading your Notion export. Large exports can take a minute.</p>';
+  try{
+    const r=await fetch('/api/import',{method:'POST',body:f});
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.error||'Import failed');
+    await loadTree();
+    $('#main').innerHTML=`<h1 style="font-size:2rem">Imported</h1><p>${j.created.pages} pages, ${j.created.databases} databases, ${j.created.rows} rows. They're in the sidebar.</p>`;
+  }catch(e){$('#main').innerHTML='<h1 style="font-size:2rem">Import failed</h1><p class="hint">'+esc(e.message)+'</p>';}
+};
+
+/* ---------- boot ---------- */
+(async()=>{
+  try{
+    const me=await api('/me');
+    if(me.authed){showApp();await loadTree();openHome();}
+    else showLogin();
+  }catch(e){showLogin();}
+})();
+</script>
