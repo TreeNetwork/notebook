@@ -255,6 +255,30 @@ async function importNotionZip(buf, env) {
     return parent;
   }
 
+  // CSV databases.
+  for (const [base, e] of csvs) {
+    const parts = normParts(base);
+    const name = parts.pop();
+    const parent = ensureFolder(parts);
+    const text = new TextDecoder().decode(await e.data()).replace(/^\uFEFF/, '');
+    const table = parseCSV(text);
+    if (!table.length) continue;
+    const header = table[0];
+    const fields = header.map(h => ({ name: h || 'Field', type: 'text' }));
+    const id = newId();
+    pageRows.push([id, parent, stripSeg(name), 'database', '', JSON.stringify(fields), pageRows.length + 1]);
+    created.databases++;
+    folderIds.set(parts.concat([name]).join('/'), id); // children nest under the database
+    let sort = 0;
+    for (let r = 1; r < table.length; r++) {
+      const data = {};
+      header.forEach((h, c) => { if (table[r][c]) data[h || 'Field'] = table[r][c]; });
+      if (!Object.keys(data).length) continue;
+      dbRows.push([newId(), id, JSON.stringify(data), ++sort]);
+      created.rows++;
+    }
+  }
+
   // Markdown pages. If an .md file shares its base name with a folder,
   // its content becomes that folder-page's content.
   const folderContent = new Map(); // folder page id -> content
@@ -279,29 +303,6 @@ async function importNotionZip(buf, env) {
   // Merge folder-page content in before inserting (no UPDATE calls needed).
   for (const r of pageRows) {
     if (folderContent.has(r[0])) r[4] = folderContent.get(r[0]);
-  }
-
-  // CSV databases.
-  for (const [base, e] of csvs) {
-    const parts = normParts(base);
-    const name = parts.pop();
-    const parent = ensureFolder(parts);
-    const text = new TextDecoder().decode(await e.data()).replace(/^\uFEFF/, '');
-    const table = parseCSV(text);
-    if (!table.length) continue;
-    const header = table[0];
-    const fields = header.map(h => ({ name: h || 'Field', type: 'text' }));
-    const id = newId();
-    pageRows.push([id, parent, stripSeg(name), 'database', '', JSON.stringify(fields), pageRows.length + 1]);
-    created.databases++;
-    let sort = 0;
-    for (let r = 1; r < table.length; r++) {
-      const data = {};
-      header.forEach((h, c) => { if (table[r][c]) data[h || 'Field'] = table[r][c]; });
-      if (!Object.keys(data).length) continue;
-      dbRows.push([newId(), id, JSON.stringify(data), ++sort]);
-      created.rows++;
-    }
   }
 
   // Flush: chunks of 80 statements per batch() call. Even 10,000 pages
