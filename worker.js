@@ -224,10 +224,14 @@ async function importNotionZip(buf, env) {
     }
   }
 
-  // Folder path -> page id. Create intermediate pages for folders.
-  const folderIds = new Map(); // joined stripped segments -> id
+  // Plan everything in memory first, then write in large batches —
+  // a Worker may only make ~1000 DB calls per request, and big exports
+  // have far more pages than that. One batch() call covers many inserts.
+  const folderIds = new Map(); // joined RAW segments -> id
   const t = now();
   let created = { pages: 0, databases: 0, rows: 0 };
+  const pageRows = [];  // [id,parent,title,kind,content,fields_json,sort]
+  const dbRows = [];    // [id,page_id,data_json,sort]
 
   // Split a zip path into segments, dropping Notion's top-level "Export…" wrapper
   // folder so imported content lands at the root of the sidebar.
@@ -237,16 +241,13 @@ async function importNotionZip(buf, env) {
     return parts;
   }
 
-  async function ensureFolder(segments) {
-    // segments: array of RAW path segments (with hex ids), excluding the file itself
+  function ensureFolder(segments) {
     let parent = null, key = '';
     for (const raw of segments) {
       key = key ? key + '/' + raw : raw;
       if (folderIds.has(key)) { parent = folderIds.get(key); continue; }
       const id = newId();
-      await env.DB.prepare(
-        'INSERT INTO pages (id,parent_id,title,kind,content,fields_json,sort,archived,created,updated) VALUES (?,?,?,?,?,?,?,0,?,?)'
-      ).bind(id, parent, stripSeg(raw), 'page', '', '[]', t, t, t).run();
+      pageRows.push([id, parent, stripSeg(raw), 'page', '', '[]', pageRows.length + 1]);
       created.pages++;
       folderIds.set(key, id);
       parent = id;
@@ -256,6 +257,7 @@ async function importNotionZip(buf, env) {
 
   // Markdown pages. If an .md file shares its base name with a folder,
   // its content becomes that folder-page's content.
+  const folderContent = new Map(); // folder page id -> content
   for (const e of mds) {
     const parts = normParts(e.name);
     const file = parts.pop();
@@ -264,47 +266,54 @@ async function importNotionZip(buf, env) {
     // Drop the duplicated "# Title" first line Notion writes.
     const title = stripSeg(file.replace(/\.md$/i, ''));
     text = text.replace(/^# .*\n+/, '');
-    const parent = await ensureFolder(parts);
+    const parent = ensureFolder(parts);
     if (folderIds.has(base)) {
-      await env.DB.prepare('UPDATE pages SET content=?, updated=? WHERE id=?')
-        .bind(text, now(), folderIds.get(base)).run();
+      folderContent.set(folderIds.get(base), text);
     } else {
       const id = newId();
-      await env.DB.prepare(
-        'INSERT INTO pages (id,parent_id,title,kind,content,fields_json,sort,archived,created,updated) VALUES (?,?,?,?,?,?,?,0,?,?)'
-      ).bind(id, parent, title, 'page', text, '[]', t, t, t).run();
+      pageRows.push([id, parent, title, 'page', text, '[]', pageRows.length + 1]);
       created.pages++;
       folderIds.set(base, id);
     }
+  }
+  // Merge folder-page content in before inserting (no UPDATE calls needed).
+  for (const r of pageRows) {
+    if (folderContent.has(r[0])) r[4] = folderContent.get(r[0]);
   }
 
   // CSV databases.
   for (const [base, e] of csvs) {
     const parts = normParts(base);
     const name = parts.pop();
-    const parent = await ensureFolder(parts);
+    const parent = ensureFolder(parts);
     const text = new TextDecoder().decode(await e.data()).replace(/^\uFEFF/, '');
     const table = parseCSV(text);
     if (!table.length) continue;
     const header = table[0];
     const fields = header.map(h => ({ name: h || 'Field', type: 'text' }));
     const id = newId();
-    await env.DB.prepare(
-      'INSERT INTO pages (id,parent_id,title,kind,content,fields_json,sort,archived,created,updated) VALUES (?,?,?,?,?,?,?,0,?,?)'
-    ).bind(id, parent, stripSeg(name), 'database', '', JSON.stringify(fields), t, t, t).run();
+    pageRows.push([id, parent, stripSeg(name), 'database', '', JSON.stringify(fields), pageRows.length + 1]);
     created.databases++;
     let sort = 0;
-    const stmts = [];
     for (let r = 1; r < table.length; r++) {
       const data = {};
       header.forEach((h, c) => { if (table[r][c]) data[h || 'Field'] = table[r][c]; });
       if (!Object.keys(data).length) continue;
-      stmts.push(env.DB.prepare('INSERT INTO db_rows (id,page_id,data_json,sort,created,updated) VALUES (?,?,?,?,?,?)')
-        .bind(newId(), id, JSON.stringify(data), ++sort, t, t));
+      dbRows.push([newId(), id, JSON.stringify(data), ++sort]);
       created.rows++;
     }
-    for (let i = 0; i < stmts.length; i += 40) await env.DB.batch(stmts.slice(i, i + 40));
   }
+
+  // Flush: chunks of 80 statements per batch() call. Even 10,000 pages
+  // is ~125 DB calls, far under the per-request limit.
+  const pageIns = env.DB.prepare(
+    'INSERT INTO pages (id,parent_id,title,kind,content,fields_json,sort,archived,created,updated) VALUES (?,?,?,?,?,?,?,0,?,?)');
+  const rowIns = env.DB.prepare(
+    'INSERT INTO db_rows (id,page_id,data_json,sort,created,updated) VALUES (?,?,?,?,?,?)');
+  const stmts = [];
+  for (const r of pageRows) stmts.push(pageIns.bind(r[0], r[1], r[2], r[3], r[4], r[5], r[6], t, t));
+  for (const r of dbRows) stmts.push(rowIns.bind(r[0], r[1], r[2], r[3], t, t));
+  for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
 
   return { ok: true, created };
 }
